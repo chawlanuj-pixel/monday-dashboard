@@ -83,7 +83,7 @@ tr.hl td { background:#fbffe8; }
 @media (max-width:700px) { .fstep { grid-template-columns:1fr; gap:4px; } .wrap { padding:12px; } }
 
 /* ---------- shell: GA-style sidebar ---------- */
-.shell { display:grid; grid-template-columns:230px 1fr; min-height:100vh; }
+.shell { display:grid; grid-template-columns:200px minmax(0,1fr); min-height:100vh; }
 .side { background:#fff; border-right:1px solid var(--line); padding:14px 10px; position:sticky; top:0; height:100vh; overflow-y:auto; }
 .brand { font-size:16px; padding:4px 10px 12px; border-bottom:1px solid var(--line); margin-bottom:8px; }
 .brand b { background:var(--accent); padding:0 4px; border-radius:4px; }
@@ -96,7 +96,7 @@ tr.hl td { background:#fbffe8; }
 .nav-toggle { display:none; }
 .main { min-width:0; padding:16px 20px; max-width:1320px; }
 .main .top h1 { font-size:20px; margin:0; }
-@media (max-width:860px) {
+@media (max-width:720px) {
   .shell { grid-template-columns:1fr; }
   .side { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); }
   .nav-toggle { display:inline-block; border:1px solid #c9c9c9; background:#fff; border-radius:8px; padding:6px 12px; margin:0 10px; }
