@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shopify-api-key" content="38dcd607f3307d0eba5588a425f4e2b0">
+<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+<title>Monday Dashboard</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Monday Dashboard <small id="shopname"></small></h1>
+    <div class="controls">
+      <select id="period" aria-label="Period">
+        <option value="today">Today</option>
+        <option value="yesterday">Yesterday</option>
+        <option value="7d">Last 7 days</option>
+        <option value="30d" selected>Last 30 days</option>
+        <option value="mtd">Month to date</option>
+        <option value="90d">Last 90 days</option>
+      </select>
+      <button class="btn" id="refresh" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-view="founder">Founder</button>
+    <button role="tab" data-view="revenue">Revenue &amp; orders</button>
+    <button role="tab" data-view="acquisition">Acquisition</button>
+    <button role="tab" data-view="attribution">Attribution</button>
+    <button role="tab" data-view="funnel">Conversion</button>
+    <button role="tab" data-view="products">Products</button>
+    <button role="tab" data-view="retention">Retention</button>
+    <button role="tab" data-view="ops">Finance &amp; ops</button>
+    <button role="tab" data-view="spend">Ad spend</button>
+    <button role="tab" data-view="settings">Settings</button>
+  </nav>
+
+  <main id="view"><div class="loading">Loading…</div></main>
+  <p class="muted" id="foot" style="text-align:center;font-size:12px"></p>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/orders.js"></script>
+<script src="js/queries.js"></script>
+<script src="js/views-business.js"></script>
+<script src="js/views-growth.js"></script>
+<script src="js/views-admin.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
