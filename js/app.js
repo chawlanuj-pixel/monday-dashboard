@@ -71,6 +71,7 @@
       $('shopname').textContent = shop.name;
       state.period = MD.period($('period').value);
       return Promise.all([
+        MD.detectExternalCheckout(),
         MD.store.loadSettings().then(function (s) { if (s) MD.settings = Object.assign({}, MD.DEFAULT_SETTINGS, s); }).catch(function (e) { MD.storeError = e; }),
         MD.store.loadSpend().then(function (rows) { state.spend = rows; }).catch(function (e) { MD.storeError = e; })
       ]);

@@ -106,7 +106,7 @@
   F.date = function (ymd) { return ymd ? new Date(ymd + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : ''; };
   F.month = function (ym) { return new Date(ym + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' }); };
   F.esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-  F.ratio = function (a, b) { return b ? a / b : null; };
+  F.ratio = function (a, b) { return a == null || isNaN(a) || !b ? null : a / b; };
   F.delta = function (cur, prev, invert) {
     if (prev == null || cur == null || !isFinite(cur) || !isFinite(prev)) return '';
     if (prev === 0) return cur === 0 ? '<span class="d d0">no change</span>' : '<span class="d d0">new</span>';
@@ -264,5 +264,39 @@
     return MD.gql('mutation ($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { message } } }', { id: id });
   };
 
+  /* Stores whose checkout runs on an app (GoKwik, Shopflo…) have orders but no Shopify checkout sessions. */
+  MD.ext = { on: false };
+  MD.detectExternalCheckout = function () {
+    var r = 'SINCE -30d UNTIL today';
+    return Promise.all([
+      MD.ql("FROM sessions SHOW sessions_that_completed_checkout WHERE human_or_bot_session = 'human' " + r),
+      MD.ql('FROM sales SHOW orders GROUP BY sales_channel ' + r + ' ORDER BY orders DESC')
+    ]).then(function (res) {
+      var completed = res[0][0] ? res[0][0].sessions_that_completed_checkout || 0 : 0;
+      var ch = res[1], orders = MD.sum(ch, function (x) { return x.orders; });
+      var top = ch[0] || {};
+      MD.ext = { on: orders >= 5 && completed < orders * 0.3, app: top.sales_channel || 'a checkout app', orders: orders, completed: completed };
+      return MD.ext;
+    }).catch(function () { return MD.ext; });
+  };
+  MD.extNote = function () {
+    return MD.ext.on ? MD.note('<strong>Checkout runs on ' + F.esc(MD.ext.app) + '</strong>Shopify can\'t link those orders to store sessions, so it records no completed checkouts (' + F.num(MD.ext.completed) + ' against ' + F.num(MD.ext.orders) + ' orders in the last 30 days). Here, "bought" and conversion use real orders, and channels and landing pages come from the UTM tags and landing URL the checkout app saves on each order.', 'info') : '';
+  };
+  /* Orders by day for a period, from Shopify Analytics (used when checkout is external). */
+  MD.ordersDaily = function (p) { return MD.ql('FROM sales SHOW orders, net_sales TIMESERIES day SINCE ' + p.from + ' UNTIL ' + p.to); };
+
+  /* When checkout is external, replace Shopify's "completed checkout" with real orders.
+     rows: ShopifyQL rows. byDay: {date: orders} for TIMESERIES rows; total: orders for a single total row. */
+  MD.patchBought = function (rows, opt) {
+    if (!MD.ext.on || !rows) return rows;
+    opt = opt || {};
+    rows.forEach(function (x) {
+      if (opt.byDay) x.sessions_that_completed_checkout = opt.byDay[String(x.day || x.hour || '').slice(0, 10)] || 0;
+      else if (opt.total != null) x.sessions_that_completed_checkout = opt.total;
+      else if (opt.map) x.sessions_that_completed_checkout = opt.map(x);
+      else x.sessions_that_completed_checkout = null;
+    });
+    return rows;
+  };
   MD.toast = function (msg, isError) { try { shopify.toast.show(msg, { isError: !!isError }); } catch (e) { console.log(msg); } };
 })(window.MD = window.MD || {});

@@ -24,10 +24,20 @@
       safe(MD.ql(Q.sessionsBy('landing_page_path', p, 20))),
       safe(MD.ql(Q.sessionsBy('session_device_type', p))),
       safe(MD.ql(Q.sessionsBy('session_region', p, 15))),
-      safe(MD.ql(Q.botShare(p)))
+      safe(MD.ql(Q.botShare(p))),
+      MD.ext.on ? safe(MD.ordersDaily(p)) : Promise.resolve({ ok: false }),
+      MD.ext.on ? safe(MD.periodOrders(p)) : Promise.resolve({ ok: false })
     ]).then(function (r) {
       if (!alive()) return;
-      var html = sessionNote(p);
+      if (MD.ext.on) {
+        var od = {}; if (r[9].ok) r[9].v.forEach(function (x) { od[String(x.day).slice(0, 10)] = x.orders; });
+        if (r[0].ok) MD.patchBought(r[0].v, { byDay: od });
+        var ords = r[10].ok ? MD.valid(r[10].v.cur) : [];
+        var byLp = MD.groupBy(ords, function (e) { return e.landing; });
+        [1, 2, 3, 4, 6, 7].forEach(function (i) { if (r[i].ok) MD.patchBought(r[i].v); });
+        if (r[5].ok) MD.patchBought(r[5].v, { map: function (x) { return (byLp[x.landing_page_path] || []).length; } });
+      }
+      var html = MD.extNote() + sessionNote(p);
       var daily = r[0];
       if (daily.ok) {
         var rows = daily.v, days = rows.map(function (x) { return String(x.day).slice(0, 10); });
@@ -68,6 +78,13 @@
         html += '<div class="card"><h2>UTM campaigns</h2><p class="sub">Sessions and orders by the UTM tags on the link. ' + (totS ? F.pct(untagged / totS) + ' of sessions carry no UTM source or campaign: that is your tracking gap.' : '') + '</p>' + MD.table(MD.Q.campaignColumns, rows4, { empty: 'No campaign sessions.' }) + '</div>';
       } else html += '<div class="card"><h2>UTM campaigns</h2>' + MD.err(camp.e, 'UTM campaigns') + '</div>';
 
+      if (MD.ext.on && r[10].ok) {
+        var vo = MD.valid(r[10].v.cur), byC = MD.groupBy(vo, function (e) { return e.lastNonDirectCh; });
+        html += '<div class="card"><h2>Orders by channel</h2><p class="sub">From the UTM tags and browser ' + esc(MD.ext.app) + ' saved on each order. Shopify\'s session tables above can\'t show which of those sessions bought.</p>' + MD.table([
+          { label: 'Channel', key: 'k' }, { label: 'Orders', n: 1, get: function (x) { return F.num(x.n); } }, { label: 'Share', n: 1, get: function (x) { return F.pct(x.n / vo.length); } },
+          { label: 'Net revenue', n: 1, get: function (x) { return F.money(x.rev); } }, { label: 'AOV', n: 1, get: function (x) { return F.money(x.rev / x.n); } }
+        ], Object.keys(byC).map(function (k) { return { k: k, n: byC[k].length, rev: sum(byC[k], function (e) { return e.netMerch; }) }; }).sort(function (a, b) { return b.n - a.n; }), { empty: 'No orders in this period.' }) + '</div>';
+      }
       html += '<div class="card"><h2>Landing pages</h2><p class="sub">Is the traffic poor, or the page? Compare cart and conversion rates of pages with similar traffic.</p>' + sessTable(r[5], 'landing_page_path', 'Landing page') + '</div>';
       html += '<div class="cols"><div class="card"><h2>Device</h2>' + sessTable(r[6], 'session_device_type', 'Device') + '</div><div class="card"><h2>Region</h2>' + sessTable(r[7], 'session_region', 'State or region') + '</div></div>';
       if (r[8].ok && r[8].v.length) {
@@ -96,7 +113,15 @@
 
       // Shopify's own attribution models
       var M = MD.Q.MODELS;
-      if (sq.ok) {
+      if (MD.ext.on) {
+        html += MD.extNote();
+        var byUtm = MD.groupBy(valid.filter(function (e) { return e.utm.source || e.utm.campaign; }), function (e) { return [e.utm.source, e.utm.medium, e.utm.campaign].join('|'); });
+        var urows = Object.keys(byUtm).map(function (k) { var l = byUtm[k], parts = k.split('|'); return { s: parts[0], m: parts[1], c: parts[2], n: l.length, rev: sum(l, function (e) { return e.netMerch; }), newc: l.filter(function (e) { return e.isNew; }).length }; }).sort(function (a, b) { return b.n - a.n; });
+        html += '<div class="card"><h2>Orders by UTM campaign</h2><p class="sub">From the UTM tags ' + esc(MD.ext.app) + ' saved on each order. Meta campaign IDs appear as numbers; match them in Ads Manager.</p>' + MD.table([
+          { label: 'Source', key: 's' }, { label: 'Medium', key: 'm' }, { label: 'Campaign', key: 'c' }, { label: 'Orders', n: 1, get: function (x) { return F.num(x.n); } },
+          { label: 'Share', n: 1, get: function (x) { return F.pct(x.n / Math.max(1, valid.length)); } }, { label: 'Net revenue', n: 1, get: function (x) { return F.money(x.rev); } }, { label: 'New customers', n: 1, get: function (x) { return F.num(x.newc); } }
+        ], urows, { empty: 'No orders carry UTM tags in this period.' }) + '</div>';
+      } else if (sq.ok) {
         var srows = sq.v.slice().sort(function (x, y) { return (y.orders__last_non_direct_click || 0) - (x.orders__last_non_direct_click || 0); });
         var totalOrders = valid.length;
         html += '<div class="card"><h2>Shopify attribution, five models</h2><p class="sub">Orders by channel under each of Shopify\'s models (bot-free, store time zone). First click shows who introduced the customer; last non-direct is the practical closing view; any click shows every channel that took part, so its column can add up to more than your ' + F.num(totalOrders) + ' orders.</p>' + MD.table(
@@ -107,7 +132,7 @@
             { label: 'New customers (first click)', n: 1, get: function (x) { return F.num(x.new_customers__first_click); } }
           ]), srows, { empty: 'No attributed orders in this period yet.' }) + '</div>';
       } else html += '<div class="card"><h2>Shopify attribution, five models</h2>' + MD.err(sq.e, 'Shopify attribution') + '</div>';
-      if (su.ok && su.v.length) {
+      if (!MD.ext.on && su.ok && su.v.length) {
         html += '<div class="card"><h2>Orders by UTM campaign</h2>' + MD.table([
           { label: 'Source', get: function (x) { return x.utm_source || '(none)'; } }, { label: 'Medium', get: function (x) { return x.utm_medium || ''; } }, { label: 'Campaign', get: function (x) { return x.utm_campaign || ''; } },
           { label: 'Orders (last non-direct)', n: 1, get: function (x) { return F.num(x.orders__last_non_direct_click); } }, { label: 'Revenue', n: 1, get: function (x) { return F.money(x.net_sales__last_non_direct_click); } },
@@ -191,24 +216,51 @@
       safe(MD.ql(Q.productFunnel(p))),
       safe(MD.ql(Q.searches(p))),
       safe(MD.ql(Q.searchConversion(p))),
-      safe(MD.ql(Q.webPerf(p)))
+      safe(MD.ql(Q.webPerf(p))),
+      MD.ext.on ? safe(MD.ordersDaily(p)) : Promise.resolve({ ok: false }),
+      MD.ext.on ? safe(MD.ordersDaily({ from: p.prevFrom, to: p.prevTo })) : Promise.resolve({ ok: false }),
+      MD.ext.on ? safe(MD.periodOrders(p)) : Promise.resolve({ ok: false })
     ]).then(function (r) {
       if (!alive()) return;
-      var html = sessionNote(p);
+      if (MD.ext.on) {
+        var od = {}, tot = 0, ptot = 0;
+        if (r[11].ok) r[11].v.forEach(function (x) { od[String(x.day).slice(0, 10)] = x.orders; tot += x.orders || 0; });
+        if (r[12].ok) r[12].v.forEach(function (x) { ptot += x.orders || 0; });
+        if (r[0].ok) MD.patchBought(r[0].v, { total: tot });
+        if (r[1].ok) MD.patchBought(r[1].v, { total: ptot });
+        if (r[2].ok) MD.patchBought(r[2].v, { byDay: od });
+        var byLp = MD.groupBy(r[13].ok ? MD.valid(r[13].v.cur) : [], function (e) { return e.landing; });
+        [3, 4, 6].forEach(function (i) { if (r[i].ok) MD.patchBought(r[i].v); });
+        if (r[5].ok) MD.patchBought(r[5].v, { map: function (x) { return (byLp[x.landing_page_path] || []).length; } });
+        if (r[7].ok) MD.patchBought(r[7].v, { map: function (x) { return (byLp[x.landing_page_path] || []).length; } });
+      }
+      var html = MD.extNote() + sessionNote(p);
       if (r[0].ok && r[0].v[0]) {
         var t = r[0].v[0], pv = r[1].ok && r[1].v[0] ? r[1].v[0] : {};
+        if (MD.ext.on) {
+          var o0 = t.sessions_that_completed_checkout, po = pv.sessions_that_completed_checkout;
+          html += '<div class="card"><h2>Store funnel</h2><p class="sub">Checkout happens on ' + esc(MD.ext.app) + ', so Shopify\'s checkout step is skipped: sessions → added to cart → orders.</p>' + MD.funnel([
+            { label: 'Sessions', value: t.sessions }, { label: 'Added to cart', value: t.sessions_with_cart_additions }, { label: 'Orders', value: o0 }
+          ]) + '<div class="kpis" style="margin-top:14px">' +
+            MD.kpi({ label: 'Add-to-cart rate', value: F.pct(F.ratio(t.sessions_with_cart_additions, t.sessions)), delta: F.delta(F.ratio(t.sessions_with_cart_additions, t.sessions), F.ratio(pv.sessions_with_cart_additions, pv.sessions)) }) +
+            MD.kpi({ label: 'Cart to order', value: F.pct(F.ratio(o0, t.sessions_with_cart_additions)), delta: F.delta(F.ratio(o0, t.sessions_with_cart_additions), F.ratio(po, pv.sessions_with_cart_additions)) }) +
+            MD.kpi({ label: 'Store conversion rate', value: F.pct(F.ratio(o0, t.sessions)), sub: 'orders ÷ sessions', delta: F.delta(F.ratio(o0, t.sessions), F.ratio(po, pv.sessions)), hi: true }) +
+            MD.kpi({ label: 'Cart abandonment', value: F.pct(Math.max(0, 1 - (F.ratio(o0, t.sessions_with_cart_additions) || 0))), sub: 'carts that did not become orders' }) +
+            '</div></div>';
+        } else {
         html += '<div class="card"><h2>Store funnel</h2><p class="sub">Shopify\'s open funnel: a session can reach checkout without a recorded cart addition, so steps are not a strict sequence.</p>' + MD.funnel([
-          { label: 'Sessions', value: t.sessions },
-          { label: 'Added to cart', value: t.sessions_with_cart_additions },
-          { label: 'Reached checkout', value: t.sessions_that_reached_checkout },
-          { label: 'Completed checkout', value: t.sessions_that_completed_checkout }
-        ]) + '<div class="kpis" style="margin-top:14px">' +
-          MD.kpi({ label: 'Add-to-cart rate', value: F.pct(F.ratio(t.sessions_with_cart_additions, t.sessions)), delta: F.delta(F.ratio(t.sessions_with_cart_additions, t.sessions), F.ratio(pv.sessions_with_cart_additions, pv.sessions)) }) +
-          MD.kpi({ label: 'Cart to checkout', value: F.pct(F.ratio(t.sessions_that_reached_checkout, t.sessions_with_cart_additions)), delta: F.delta(F.ratio(t.sessions_that_reached_checkout, t.sessions_with_cart_additions), F.ratio(pv.sessions_that_reached_checkout, pv.sessions_with_cart_additions)) }) +
-          MD.kpi({ label: 'Checkout completion', value: F.pct(F.ratio(t.sessions_that_completed_checkout, t.sessions_that_reached_checkout)), delta: F.delta(F.ratio(t.sessions_that_completed_checkout, t.sessions_that_reached_checkout), F.ratio(pv.sessions_that_completed_checkout, pv.sessions_that_reached_checkout)) }) +
-          MD.kpi({ label: 'Store conversion rate', value: F.pct(F.ratio(t.sessions_that_completed_checkout, t.sessions)), delta: F.delta(F.ratio(t.sessions_that_completed_checkout, t.sessions), F.ratio(pv.sessions_that_completed_checkout, pv.sessions)), hi: true }) +
-          MD.kpi({ label: 'Cart abandonment', value: F.pct(1 - (F.ratio(t.sessions_that_completed_checkout, t.sessions_with_cart_additions) || 0)), sub: 'carts that did not become orders' }) +
-          '</div></div>';
+            { label: 'Sessions', value: t.sessions },
+            { label: 'Added to cart', value: t.sessions_with_cart_additions },
+            { label: 'Reached checkout', value: t.sessions_that_reached_checkout },
+            { label: 'Completed checkout', value: t.sessions_that_completed_checkout }
+          ]) + '<div class="kpis" style="margin-top:14px">' +
+            MD.kpi({ label: 'Add-to-cart rate', value: F.pct(F.ratio(t.sessions_with_cart_additions, t.sessions)), delta: F.delta(F.ratio(t.sessions_with_cart_additions, t.sessions), F.ratio(pv.sessions_with_cart_additions, pv.sessions)) }) +
+            MD.kpi({ label: 'Cart to checkout', value: F.pct(F.ratio(t.sessions_that_reached_checkout, t.sessions_with_cart_additions)), delta: F.delta(F.ratio(t.sessions_that_reached_checkout, t.sessions_with_cart_additions), F.ratio(pv.sessions_that_reached_checkout, pv.sessions_with_cart_additions)) }) +
+            MD.kpi({ label: 'Checkout completion', value: F.pct(F.ratio(t.sessions_that_completed_checkout, t.sessions_that_reached_checkout)), delta: F.delta(F.ratio(t.sessions_that_completed_checkout, t.sessions_that_reached_checkout), F.ratio(pv.sessions_that_completed_checkout, pv.sessions_that_reached_checkout)) }) +
+            MD.kpi({ label: 'Store conversion rate', value: F.pct(F.ratio(t.sessions_that_completed_checkout, t.sessions)), delta: F.delta(F.ratio(t.sessions_that_completed_checkout, t.sessions), F.ratio(pv.sessions_that_completed_checkout, pv.sessions)), hi: true }) +
+            MD.kpi({ label: 'Cart abandonment', value: F.pct(1 - (F.ratio(t.sessions_that_completed_checkout, t.sessions_with_cart_additions) || 0)), sub: 'carts that did not become orders' }) +
+            '</div></div>';
+          }
       } else html += MD.err(r[0].e, 'the funnel');
 
       if (r[2].ok) {

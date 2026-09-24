@@ -5,7 +5,7 @@
   var MONEY = '{ shopMoney { amount } }';
   var VISIT = '{ occurredAt source sourceType landingPage referrerUrl utmParameters { source medium campaign content term } }';
   var ORDERS_Q = 'query ($q: String!, $after: String) { orders(first: 15, after: $after, query: $q, sortKey: CREATED_AT, reverse: true) { pageInfo { hasNextPage endCursor } nodes {' +
-    ' id name createdAt cancelledAt cancelReason test sourceName paymentGatewayNames displayFinancialStatus displayFulfillmentStatus returnStatus taxesIncluded discountCodes' +
+    ' id name createdAt cancelledAt cancelReason test sourceName tags customAttributes { key value } app { name } paymentGatewayNames displayFinancialStatus displayFulfillmentStatus returnStatus taxesIncluded discountCodes' +
     ' subtotalPriceSet ' + MONEY + ' currentSubtotalPriceSet ' + MONEY + ' totalDiscountsSet ' + MONEY + ' totalTaxSet ' + MONEY + ' totalShippingPriceSet ' + MONEY +
     ' totalPriceSet ' + MONEY + ' currentTotalPriceSet ' + MONEY + ' totalRefundedSet ' + MONEY + ' totalReceivedSet ' + MONEY +
     ' shippingAddress { province provinceCode city zip } customer { id }' +
@@ -43,6 +43,7 @@
       if (/google/.test(u.source.toLowerCase())) return 'Google organic / untagged';
       return 'Other tagged (' + u.source + ')';
     }
+    if (visit.inApp) return 'Meta in-app, untagged';
     if (/facebook|instagram/.test(s)) return 'Meta organic / untagged';
     if (/google|bing|yahoo|duckduckgo/.test(s) || t === 'search') return 'Organic search';
     if (/whatsapp/.test(s)) return 'WhatsApp';
@@ -82,9 +83,13 @@
     var e = { raw: o, id: o.id, name: o.name, day: MD.dayOf(o.createdAt), created: o.createdAt };
     e.cancelled = !!o.cancelledAt;
     e.test = !!o.test;
-    e.cod = (o.paymentGatewayNames || []).some(function (g) { return codRe.test(g); });
-    e.gateway = (o.paymentGatewayNames || [])[0] || 'none';
-    e.channel = o.sourceName || 'web';
+    var tags = (o.tags || []).map(function (t) { return String(t).toLowerCase(); });
+    var gws = o.paymentGatewayNames || [];
+    e.tags = tags;
+    // COD: gateway name, a COD tag (GoKwik and similar apps), or an unpaid order with no gateway at all.
+    e.cod = gws.some(function (g) { return codRe.test(g); }) || tags.indexOf('cod') >= 0 || (!gws.length && /PENDING/.test(o.displayFinancialStatus || ''));
+    e.gateway = gws[0] || (e.cod ? 'Cash on delivery' : 'none');
+    e.channel = o.app && o.app.name ? o.app.name : (o.sourceName || 'web');
     e.fin = o.displayFinancialStatus || '';
     e.ful = o.displayFulfillmentStatus || '';
     e.customer = o.customer ? o.customer.id : null;
@@ -106,6 +111,13 @@
       cogs += lineCogs; if (cost != null) cogsKnown += exTax;
       return { title: li.product ? li.product.title : li.title, productId: li.product ? li.product.id : null, type: li.product ? li.product.productType : '', variant: li.variantTitle || '', sku: li.sku || '', qty: li.quantity, qtyNow: cur, gross: lg, net: exTax, discount: lg - ln, cogs: lineCogs, costKnown: cost != null };
     });
+    // Order-level discounts (e.g. a prepaid discount from a checkout app) are not in line totals.
+    var lineDisc = MD.sum(e.lines, function (l) { return l.discount; }), lineNet = MD.sum(lines, function (li) { return amt(li.discountedTotalSet); });
+    var orderDisc = Math.max(0, amt(o.totalDiscountsSet) - lineDisc);
+    if (orderDisc > 0.005 && lineNet > 0) {
+      var exRatio = net / lineNet;           // share of line value that is not tax
+      net -= orderDisc * exRatio; netCurrent -= orderDisc * exRatio * (units ? unitsCurrent / units : 1);
+    }
     e.units = units;
     e.grossMerch = gross;                  // before discounts, ex tax
     e.discounts = Math.max(0, gross - net);   // ex tax, so gross − discounts = net
@@ -136,6 +148,12 @@
     var j = o.customerJourneySummary;
     e.firstVisit = j ? j.firstVisit : null;
     e.lastVisit = j ? j.lastVisit : null;
+    e.attrs = {};
+    (o.customAttributes || []).forEach(function (a) { e.attrs[String(a.key).toLowerCase()] = a.value; });
+    if (!e.firstVisit && !e.lastVisit) {
+      var cv = visitFromAttributes(e.attrs, o.createdAt);
+      if (cv) { e.firstVisit = cv; e.lastVisit = cv; e.journeySource = 'order attributes'; }
+    } else e.journeySource = 'shopify';
     e.daysToConvert = j ? j.daysToConversion : null;
     e.firstCh = MD.channelOf(e.firstVisit);
     e.lastCh = MD.channelOf(e.lastVisit || e.firstVisit);
@@ -146,6 +164,35 @@
     e.utm = { source: u.source || '', medium: u.medium || '', campaign: u.campaign || '', content: u.content || '' };
     return e;
   }
+  /* Checkout apps (GoKwik, Shopflo, Razorpay Magic…) create orders through the API, so Shopify has no customer
+     journey. They usually save UTM tags, the landing URL and the browser on the order instead. */
+  var UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  function visitFromAttributes(a, when) {
+    var url = a.full_url || a.landing_page || a.landing_page_url || a.landing_site || a._landing_page || '';
+    var u = {};
+    UTM_KEYS.forEach(function (k) { u[k.slice(4)] = a[k] || a['_' + k] || ''; });
+    if (url) {
+      try {
+        var q = new URL(url, 'https://x.invalid').searchParams;
+        UTM_KEYS.forEach(function (k) { if (!u[k.slice(4)] && q.get(k)) u[k.slice(4)] = q.get(k); });
+        if (!u.source && q.get('fbclid')) { u.source = 'facebook'; }
+        if (!u.source && (q.get('gclid') || q.get('gbraid') || q.get('wbraid'))) { u.source = 'google'; u.medium = u.medium || 'cpc'; }
+      } catch (err) {}
+    }
+    if (/^(direct|\(direct\)|none)$/i.test(u.source || '')) u.source = '';
+    var ua = a.user_agent || '';
+    var inApp = /Instagram/i.test(ua) ? 'instagram' : /FBAN|FBAV|FB_IAB|FBIOS/i.test(ua) ? 'facebook' : '';
+    if (!url && !u.source && !ua) return null;
+    return {
+      occurredAt: when, landingPage: url || null, referrerUrl: null,
+      source: u.source || inApp || 'direct', sourceType: u.source ? null : (inApp ? 'SOCIAL_IN_APP' : null),
+      utmParameters: u.source || u.campaign ? { source: u.source || null, medium: u.medium || null, campaign: u.campaign || null, content: u.content || null, term: u.term || null } : null,
+      inApp: inApp
+    };
+  }
+  MD.visitFromAttributes = visitFromAttributes;
+  MD._enrich = function (o) { return enrich(o); };
+
   function pathOf(url) { try { return new URL(url, 'https://x.invalid').pathname; } catch (err) { return url; } }
   MD.pathOf = pathOf;
 
@@ -176,7 +223,7 @@
   MD.loadOrders = function (from, to, onProgress) {
     var key = from + '|' + to;
     if (orderCache[key]) return orderCache[key];
-    var q = 'created_at:>=' + from + 'T00:00:00' + tzOffset() + ' created_at:<=' + to + 'T23:59:59' + tzOffset();
+    var q = "created_at:>='" + from + 'T00:00:00' + tzOffset() + "' created_at:<='" + to + 'T23:59:59' + tzOffset() + "'";
     var all = [], pages = 0, MAX = 60;
     function page(after) {
       return MD.gql(ORDERS_Q, { q: q, after: after || null }).then(function (d) {
@@ -235,6 +282,7 @@
     });
   };
 
+  MD.tzOffset = function () { return tzOffset(); };
   function tzOffset() {
     // Offset of the store time zone, e.g. +05:30. Falls back to +05:30 for IST stores.
     try {

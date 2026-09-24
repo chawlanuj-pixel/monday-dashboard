@@ -101,8 +101,10 @@
   MD.views.report = function (el, p, alive) {
     var n = +(MD.state.reportMonths || 12);
     el.innerHTML = '<div class="loading">Building the report…</div>';
-    return Promise.all([loadMonthly(n), MD.loadHistory(24).catch(function () { return null; })]).then(function (res) {
+    var extP = MD.ext.on ? MD.loadOrders(MD.addDays(MD.today(), -59), MD.today()).then(function (x) { return x.orders; }, function () { return null; }) : Promise.resolve(null);
+    return Promise.all([loadMonthly(n), MD.loadHistory(24).catch(function () { return null; }), extP]).then(function (res) {
       if (!alive()) return;
+      res[0].extOrders = res[2];
       var D = res[0], hist = res[1], rows = D.months, T = totals(rows), S = MD.settings, E = T.econ;
       var active = rows.filter(function (r) { return r.orders || r.spend || r.sessions; });
       var html = '<div class="row sb noprint" style="margin-bottom:12px"><div class="row"><label class="muted">Report covers <select id="rep-months">' +
@@ -116,7 +118,12 @@
 
       // Channel attribution (Shopify, last non-direct)
       var ch = D.channels.ok ? D.channels.v : [];
+      if (MD.ext.on && D.extOrders) {
+        var gch = MD.groupBy(MD.valid(D.extOrders), function (e) { return e.lastNonDirectCh; });
+        ch = Object.keys(gch).map(function (k) { var l = gch[k]; return { referring_channel: k, orders__last_non_direct_click: l.length, net_sales__last_non_direct_click: sum(l, function (e) { return e.netMerch; }), total_sales__last_non_direct_click: sum(l, function (e) { return e.total; }) }; });
+      }
       var paidRe = /social|paid|meta|facebook|instagram/i;
+      if (MD.ext.on) html += MD.extNote();
       var socialSales = sum(ch.filter(function (x) { return paidRe.test(x.referring_channel || ''); }), function (x) { return x.total_sales__last_non_direct_click; });
       var socialOrders = sum(ch.filter(function (x) { return paidRe.test(x.referring_channel || ''); }), function (x) { return x.orders__last_non_direct_click; });
 
@@ -220,7 +227,7 @@
         { k: 'Sessions reaching checkout', a: F.num(T.reached), b: F.pct(F.ratio(T.reached, T.atc)) + ' of cart' },
         { k: 'Orders', a: F.num(T.orders), b: F.pct(T.cvr) + ' of sessions', _cls: 'hl' }
       ]) + '</div><div>' + (D.devices.ok ? MD.table([{ label: 'Device', get: function (x) { return x.session_device_type || '(none)'; } }, { label: 'Sessions', n: 1, get: function (x) { return F.num(x.sessions); } },
-        { label: 'Share', n: 1, get: function (x) { return F.pct(x.sessions / Math.max(1, sum(D.devices.v, function (y) { return y.sessions; }))); } }, { label: 'CVR', n: 1, get: function (x) { return F.pct(F.ratio(x.sessions_that_completed_checkout, x.sessions)); } }], D.devices.v) : '') + '</div></div>';
+        { label: 'Share', n: 1, get: function (x) { return F.pct(x.sessions / Math.max(1, sum(D.devices.v, function (y) { return y.sessions; }))); } }, { label: 'CVR', n: 1, get: function (x) { return MD.ext.on ? 'n/a' : F.pct(F.ratio(x.sessions_that_completed_checkout, x.sessions)); } }], D.devices.v) : '') + '</div></div>';
       html += '<h3>Attribution by source (Shopify, last non-direct)</h3>' + MD.table([{ label: 'Source', get: function (x) { return x.referring_channel || '(none)'; } }, { label: 'Orders', n: 1, get: function (x) { return F.num(x.orders__last_non_direct_click); } },
         { label: 'Net sales', n: 1, get: function (x) { return F.money(x.net_sales__last_non_direct_click); } }, { label: 'Total sales', n: 1, get: function (x) { return F.money(x.total_sales__last_non_direct_click); } },
         { label: 'Share of orders', n: 1, get: function (x) { return F.pct(F.ratio(x.orders__last_non_direct_click, T.orders)); } }], ch.slice().sort(function (a, b) { return b.orders__last_non_direct_click - a.orders__last_non_direct_click; }), { empty: 'No attributed orders yet.' }) + '</div>';
@@ -284,12 +291,13 @@
     if (b) b.addEventListener('click', function () { window.print(); });
   }
 
-  function integrityFlag(r) { return r.orders >= 20 && r.completed != null && Math.abs(1 - F.ratio(r.completed, r.orders)) > 0.15; }
+  function integrityFlag(r) { return !MD.ext.on && r.orders >= 20 && r.completed != null && Math.abs(1 - F.ratio(r.completed, r.orders)) > 0.15; }
 
   function integrity(active, D) {
     var S = MD.settings;
     var h = '<div class="card"><h2>Data integrity</h2><p class="sub">The checks that catch broken tracking before it makes a healthy business look dead.</p>';
-    if (D.sessionsOk) {
+    if (MD.ext.on) h += MD.note('<strong>Checkout runs on ' + esc(MD.ext.app) + '</strong>Shopify records no completed checkout sessions for these orders by design, so the session-versus-orders check does not apply. Site conversion here uses real orders ÷ sessions.', 'info');
+    else if (D.sessionsOk) {
       h += '<h3>Sessions recorded completing checkout against real orders</h3>' + MD.table([
         { label: 'Month', get: function (r) { return F.month(r.m); } }, { label: 'Real orders', n: 1, get: function (r) { return F.num(r.orders); } },
         { label: 'Sessions completing checkout', n: 1, get: function (r) { return F.num(r.completed); } }, { label: 'Reported CVR', n: 1, get: function (r) { return F.pct(F.ratio(r.completed, r.sessions)); } },
@@ -379,7 +387,7 @@
   function loadAbandoned(from, to) {
     var all = [];
     function page(after) {
-      return MD.gql(AB_Q, { q: 'created_at:>=' + from + ' created_at:<=' + to + 'T23:59:59', after: after || null }).then(function (d) {
+      return MD.gql(AB_Q, { q: "created_at:>='" + from + 'T00:00:00' + MD.tzOffset() + "' created_at:<='" + to + 'T23:59:59' + MD.tzOffset() + "'", after: after || null }).then(function (d) {
         all = all.concat(d.abandonedCheckouts.nodes);
         return d.abandonedCheckouts.pageInfo.hasNextPage && all.length < 2000 ? page(d.abandonedCheckouts.pageInfo.endCursor) : all;
       });
@@ -396,18 +404,27 @@
       safe(MD.ql('FROM sessions SHOW sessions, sessions_with_cart_additions, sessions_that_reached_checkout, sessions_that_completed_checkout ' + HUMAN + ' GROUP BY day_of_week, hour_of_day ' + r)),
       safe(MD.ql('FROM sessions SHOW sessions, sessions_with_cart_additions, sessions_that_reached_checkout, sessions_that_completed_checkout ' + HUMAN + ' TIMESERIES day ' + r)),
       safe(MD.ql("FROM sessions SHOW sessions, sessions_with_cart_additions, sessions_that_reached_checkout, sessions_that_completed_checkout WHERE landing_page_type = 'Product' AND human_or_bot_session = 'human' GROUP BY landing_page_path " + r + ' ORDER BY sessions_with_cart_additions DESC LIMIT 25')),
-      safe(loadAbandoned(p.from, p.to))
+      safe(loadAbandoned(p.from, p.to)),
+      MD.ext.on ? safe(MD.ordersDaily(p)) : Promise.resolve({ ok: false })
     ]).then(function (res) {
       if (!alive()) return;
-      var html = '';
+      var html = MD.extNote();
+      if (MD.ext.on) {
+        var od = {}, tot = 0; if (res[5].ok) res[5].v.forEach(function (x) { od[String(x.day).slice(0, 10)] = x.orders; tot += x.orders || 0; });
+        if (res[0].ok) MD.patchBought(res[0].v, { total: tot });
+        if (res[1].ok) MD.patchBought(res[1].v);
+        if (res[2].ok) MD.patchBought(res[2].v, { byDay: od });
+        if (res[3].ok) MD.patchBought(res[3].v);
+        if (metric === 'sessions_that_completed_checkout') metric = 'sessions_with_cart_additions';
+      }
       var t = res[0].ok && res[0].v[0] ? res[0].v[0] : null;
       if (t) {
         html += '<div class="card"><h2>Carts and checkouts</h2><p class="sub">Sessions, bots removed. A session counts once however many items it adds.</p><div class="kpis">' +
           MD.kpi({ label: 'Sessions that added to cart', value: F.num(t.sessions_with_cart_additions), sub: F.pct(F.ratio(t.sessions_with_cart_additions, t.sessions)) + ' of sessions' }) +
           MD.kpi({ label: 'Sessions that started checkout', value: F.num(t.sessions_that_reached_checkout), sub: F.pct(F.ratio(t.sessions_that_reached_checkout, t.sessions)) + ' of sessions' }) +
-          MD.kpi({ label: 'Sessions that bought', value: F.num(t.sessions_that_completed_checkout), hi: true }) +
-          MD.kpi({ label: 'Cart abandonment', value: F.pct(1 - (F.ratio(t.sessions_that_completed_checkout, t.sessions_with_cart_additions) || 0)), sub: 'added to cart, did not buy' }) +
-          MD.kpi({ label: 'Checkout abandonment', value: F.pct(1 - (F.ratio(t.sessions_that_completed_checkout, t.sessions_that_reached_checkout) || 0)), sub: 'started checkout, did not buy' }) +
+          MD.kpi({ label: MD.ext.on ? 'Orders' : 'Sessions that bought', value: F.num(t.sessions_that_completed_checkout), hi: true }) +
+          MD.kpi({ label: 'Cart abandonment', value: F.pct(Math.max(0, 1 - (F.ratio(t.sessions_that_completed_checkout, t.sessions_with_cart_additions) || 0))), sub: 'added to cart, did not buy' }) +
+          (MD.ext.on ? '' : MD.kpi({ label: 'Checkout abandonment', value: F.pct(1 - (F.ratio(t.sessions_that_completed_checkout, t.sessions_that_reached_checkout) || 0)), sub: 'started checkout, did not buy' })) +
           '</div></div>';
       } else html += res[0].ok ? '' : MD.err(res[0].e, 'sessions');
 
@@ -416,6 +433,7 @@
         var grid = {}, max = 0;
         res[1].v.forEach(function (x) { var k = dowIndex(x.day_of_week) + '-' + (+x.hour_of_day); grid[k] = x; max = Math.max(max, x[metric] || 0); });
         var labels = { sessions_with_cart_additions: 'Added to cart', sessions_that_reached_checkout: 'Started checkout', sessions_that_completed_checkout: 'Bought', sessions: 'All sessions' };
+        if (MD.ext.on) delete labels.sessions_that_completed_checkout;
         html += '<div class="card"><div class="row sb"><h2>When it happens</h2><div class="seg" id="cart-metric">' + Object.keys(labels).map(function (k) { return '<button type="button" data-m="' + k + '" aria-pressed="' + (k === metric) + '">' + labels[k] + '</button>'; }).join('') + '</div></div>' +
           '<p class="sub">Sessions by weekday and hour (' + esc(MD.shop.tz) + '). Darker is busier. Use it to time ads, WhatsApp and email sends.</p><div class="scroll"><table class="heatmap"><thead><tr><th></th>' +
           Array.from({ length: 24 }, function (_, h) { return '<th class="n">' + h + '</th>'; }).join('') + '<th class="n">Total</th></tr></thead><tbody>' +

@@ -45,7 +45,18 @@
       var html = '';
       var lp = res[0].ok ? res[0].v : [], sales = {};
       if (res[2].ok) res[2].v.forEach(function (x) { sales[x.order_landing_page_path || ''] = x; });
-      var totS = sum(lp, function (x) { return x.sessions; }), totC = sum(lp, function (x) { return x.sessions_that_completed_checkout; });
+      if (MD.ext.on) {
+        // Checkout app: orders and revenue per landing page come from the landing URL saved on each order.
+        var vo = res[4].ok ? MD.valid(res[4].v.cur) : [];
+        var byLp = MD.groupBy(vo, function (e) { return e.landing; });
+        sales = {};
+        Object.keys(byLp).forEach(function (k) { sales[k] = { orders: byLp[k].length, net_sales: sum(byLp[k], function (e) { return e.netMerch; }) }; });
+        lp.forEach(function (x) { x.sessions_that_completed_checkout = (byLp[x.landing_page_path] || []).length; });
+        if (res[1].ok) MD.patchBought(res[1].v);
+        if (res[3].ok) MD.patchBought(res[3].v);
+        html += MD.extNote();
+      }
+      var totS = sum(lp, function (x) { return x.sessions; }), totC = MD.ext.on && res[4].ok ? MD.valid(res[4].v.cur).length : sum(lp, function (x) { return x.sessions_that_completed_checkout; });
       var storeCvr = F.ratio(totC, totS);
       var minS = Math.max(20, Math.round(totS * 0.01));
       lp.forEach(function (x) {
@@ -62,10 +73,10 @@
       var all = { label: 'Sessions', value: totS };
       html += '<div class="card"><h2>The journey, store-wide</h2><p class="sub">Every human session in the period, and where shoppers dropped out. Red is the drop at each step.</p>' + MD.waterfall([
         all,
-        { label: 'Added to cart', value: sum(lp, function (x) { return x.sessions_with_cart_additions; }) },
-        { label: 'Reached checkout', value: sum(lp, function (x) { return x.sessions_that_reached_checkout; }) },
-        { label: 'Bought', value: totC }
-      ]) + '<p class="muted small">Shopify\'s funnel is open: a session can reach checkout without a recorded cart addition (buy-now), so a later step can be larger than the one before.</p></div>';
+        { label: 'Added to cart', value: sum(lp, function (x) { return x.sessions_with_cart_additions; }) }
+      ].concat(MD.ext.on ? [] : [{ label: 'Reached checkout', value: sum(lp, function (x) { return x.sessions_that_reached_checkout; }) }]).concat([
+        { label: MD.ext.on ? 'Orders' : 'Bought', value: totC }
+      ])) + '<p class="muted small">Shopify\'s funnel is open: a session can reach checkout without a recorded cart addition (buy-now), so a later step can be larger than the one before.</p></div>';
 
       // ---------- winning landing pages ----------
       var ranked = lp.filter(function (x) { return x.enough; }).sort(function (a, b) { return (b.cvr || 0) - (a.cvr || 0) || b.sessions - a.sessions; });
@@ -82,8 +93,8 @@
       if (pg) {
         html += MD.waterfall([
           { label: 'Landed', value: pg.sessions }, { label: 'Stayed', value: Math.round(pg.sessions * (1 - (pg.bounce_rate || 0))) },
-          { label: 'Added to cart', value: pg.sessions_with_cart_additions }, { label: 'Reached checkout', value: pg.sessions_that_reached_checkout }, { label: 'Bought', value: pg.sessions_that_completed_checkout }
-        ]) + '<div class="kpis" style="margin-top:10px">' +
+          { label: 'Added to cart', value: pg.sessions_with_cart_additions }
+        ].concat(MD.ext.on ? [] : [{ label: 'Reached checkout', value: pg.sessions_that_reached_checkout }]).concat([{ label: MD.ext.on ? 'Orders' : 'Bought', value: pg.sessions_that_completed_checkout }])) + '<div class="kpis" style="margin-top:10px">' +
           MD.kpi({ label: 'Bounce rate', value: F.pct(pg.bounce_rate), sub: 'left after one page' }) + MD.kpi({ label: 'Cart rate', value: F.pct(pg.cart), sub: 'store ' + F.pct(F.ratio(sum(lp, function (x) { return x.sessions_with_cart_additions; }), totS)) }) +
           MD.kpi({ label: 'Conversion', value: F.pct(pg.cvr), sub: pg.lift != null ? F.x(pg.lift) + ' the store rate' : '', hi: true }) + MD.kpi({ label: 'Revenue per session', value: F.money2(pg.rps) }) + '</div>';
         if (res[3].ok) {
@@ -107,7 +118,7 @@
       }
 
       // ---------- first landing → converting landing ----------
-      html += '<div class="card"><h2>First landing page to converting landing page</h2><p class="sub">For each order, Shopify records the page of the shopper\'s first visit and of the visit that ended in the purchase. This shows which pages introduce buyers and which pages close them.</p>';
+      html += '<div class="card"><h2>First landing page to converting landing page</h2><p class="sub">For each order, ' + (MD.ext.on ? 'the landing URL ' + esc(MD.ext.app) + ' saved on the order (so first and converting page are the same visit)' : 'Shopify records the page of the shopper\'s first visit and of the visit that ended in the purchase') + '. This shows which pages introduce buyers and which pages close them.</p>';
       if (res[4].ok) {
         var orders = MD.valid(res[4].v.cur).filter(function (e) { return e.firstVisit || e.lastVisit; });
         if (!orders.length) html += MD.empty('No orders with a recorded journey in this period yet.');
