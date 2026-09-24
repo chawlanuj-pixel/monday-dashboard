@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shopify-api-key" content="c06d9e091ed08311d87331b2fe667df7">
+<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+<title>Monday Dashboard</title>
+<link rel="stylesheet" href="../css/app.css?v=202609250429">
+</head>
+<body>
+<div class="shell">
+  <nav class="side" id="tabs" aria-label="Reports">
+    <div class="brand"><b>Monday</b> Dashboard<small id="shopname"></small></div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false">Menu</button>
+    <div class="nav-groups" id="nav-groups">
+      <div class="ng"><div class="ngh">Home</div>
+        <button data-view="founder">Founder view</button>
+        <button data-view="today">Today</button>
+        <button data-view="report">Performance report</button>
+      </div>
+      <div class="ng"><div class="ngh">Acquisition</div>
+        <button data-view="acquisition">Traffic</button>
+        <button data-view="attribution">Attribution</button>
+      </div>
+      <div class="ng"><div class="ngh">Engagement</div>
+        <button data-view="journeys">Journeys &amp; landing pages</button>
+        <button data-view="funnel">Conversion funnel</button>
+        <button data-view="carts">Carts &amp; checkouts</button>
+      </div>
+      <div class="ng"><div class="ngh">Monetization</div>
+        <button data-view="revenue">Revenue &amp; orders</button>
+        <button data-view="products">Products</button>
+      </div>
+      <div class="ng"><div class="ngh">Retention</div>
+        <button data-view="retention">Cohorts &amp; repeat</button>
+      </div>
+      <div class="ng"><div class="ngh">Business</div>
+        <button data-view="ops">Finance &amp; ops</button>
+      </div>
+      <div class="ng"><div class="ngh">Explore</div>
+        <button data-view="explore">Build a view</button>
+      </div>
+      <div class="ng"><div class="ngh">Configure</div>
+        <button data-view="spend">Ad spend</button>
+        <button data-view="settings">Settings</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="top">
+      <h1 id="view-title">Monday Dashboard</h1>
+      <div class="controls">
+        <select id="period" aria-label="Period">
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d" selected>Last 30 days</option>
+          <option value="mtd">Month to date</option>
+          <option value="90d">Last 90 days</option>
+        </select>
+        <button class="btn" id="refresh" type="button">Refresh</button>
+      </div>
+    </div>
+    <main id="view"><div class="loading">Loading…</div></main>
+    <p class="muted" id="foot" style="text-align:center;font-size:12px"></p>
+  </div>
+</div>
+
+<script src="../js/core.js?v=202609250429"></script>
+<script src="../js/orders.js?v=202609250429"></script>
+<script src="../js/queries.js?v=202609250429"></script>
+<script src="../js/views-business.js?v=202609250429"></script>
+<script src="../js/views-growth.js?v=202609250429"></script>
+<script src="../js/views-admin.js?v=202609250429"></script>
+<script src="../js/views-report.js?v=202609250429"></script>
+<script src="../js/views-journeys.js?v=202609250429"></script>
+<script src="../js/views-products-extra.js?v=202609250429"></script>
+<script src="../js/views-explore.js?v=202609250429"></script>
+<script src="../js/app.js?v=202609250429"></script>
+</body>
+</html>
