@@ -81,3 +81,63 @@ tr.hl td { background:#fbffe8; }
 .seg button[aria-pressed="true"] { background:var(--ink); color:#fff; }
 .heat td.n { font-size:12px; }
 @media (max-width:700px) { .fstep { grid-template-columns:1fr; gap:4px; } .wrap { padding:12px; } }
+
+/* ---------- shell: GA-style sidebar ---------- */
+.shell { display:grid; grid-template-columns:230px 1fr; min-height:100vh; }
+.side { background:#fff; border-right:1px solid var(--line); padding:14px 10px; position:sticky; top:0; height:100vh; overflow-y:auto; }
+.brand { font-size:16px; padding:4px 10px 12px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+.brand b { background:var(--accent); padding:0 4px; border-radius:4px; }
+.brand small { display:block; color:var(--muted); font-size:12px; margin-top:2px; }
+.ng { margin:10px 0; }
+.ngh { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:4px 10px; }
+.side button[data-view] { display:block; width:100%; text-align:left; border:0; background:none; padding:7px 10px; border-radius:8px; cursor:pointer; font-size:13px; color:var(--ink); }
+.side button[data-view]:hover { background:var(--soft); }
+.side button[aria-selected="true"] { background:var(--ink); color:#fff; }
+.nav-toggle { display:none; }
+.main { min-width:0; padding:16px 20px; max-width:1320px; }
+.main .top h1 { font-size:20px; margin:0; }
+@media (max-width:860px) {
+  .shell { grid-template-columns:1fr; }
+  .side { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); }
+  .nav-toggle { display:inline-block; border:1px solid #c9c9c9; background:#fff; border-radius:8px; padding:6px 12px; margin:0 10px; }
+  .nav-groups { display:none; }
+  .side.open .nav-groups { display:block; }
+  .main { padding:12px; }
+}
+
+/* ---------- report ---------- */
+.report-head { margin:4px 0 16px; }
+.report-head .eyebrow { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+.report-head .rh { font-family:Georgia, "Times New Roman", serif; font-weight:400; font-size:28px; margin:4px 0; }
+.small { font-size:12px; }
+.tag { display:inline-block; font-size:10px; letter-spacing:.05em; text-transform:uppercase; padding:1px 6px; border-radius:4px; color:#fff; vertical-align:1px; }
+.tag-data { background:#1c3f8f; } .tag-inf { background:#5f6b7a; } .tag-exp { background:#a16207; } .tag-asm { background:#b42318; }
+.findings { padding-left:20px; margin:0; } .findings li { margin:0 0 12px; } .findings li div { color:#333; margin-top:2px; }
+
+/* ---------- heatmaps, waterfalls, explore ---------- */
+.heatmap th, .heatmap td { padding:4px 5px; font-size:11px; text-align:center; border:1px solid #fff; }
+.heatmap th:first-child { text-align:left; white-space:nowrap; }
+.hm { min-width:28px; }
+.chart .wf-val { font-size:12px; font-weight:700; fill:#121212; }
+.chart .wf-drop { font-size:11px; fill:#8e1f0b; font-weight:600; }
+.explore { display:grid; grid-template-columns:290px 1fr; gap:16px; align-items:start; }
+.ex-side { position:sticky; top:8px; }
+.exl { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); margin-bottom:10px; }
+.exl select, .exl input[type=text] { color:var(--ink); }
+.ex-checks { display:flex; flex-direction:column; gap:3px; max-height:210px; overflow:auto; padding:6px 8px; border:1px solid var(--line); border-radius:8px; color:var(--ink); font-size:13px; }
+.ex-presets { margin-top:14px; display:flex; flex-wrap:wrap; gap:6px; }
+.ex-presets .muted { width:100%; }
+.chip-btn { border:1px solid var(--line); background:var(--soft); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer; }
+.chip-btn:hover { border-color:var(--ink); }
+.code { white-space:pre-wrap; font-size:12px; background:var(--soft); padding:10px; border-radius:8px; }
+details summary { cursor:pointer; color:var(--muted); font-size:13px; margin-top:6px; }
+@media (max-width:1000px) { .explore { grid-template-columns:1fr; } .ex-side { position:static; } }
+
+/* ---------- print / PDF ---------- */
+@media print {
+  .side, .top, .noprint, #foot { display:none !important; }
+  .shell { display:block; } .main { padding:0; max-width:none; }
+  body { background:#fff; }
+  .card { break-inside:avoid; border-color:#ddd; }
+}
+.chart .axl { fill:#444; font-size:12px; }

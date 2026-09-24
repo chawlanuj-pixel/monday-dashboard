@@ -9,7 +9,7 @@
     ' subtotalPriceSet ' + MONEY + ' currentSubtotalPriceSet ' + MONEY + ' totalDiscountsSet ' + MONEY + ' totalTaxSet ' + MONEY + ' totalShippingPriceSet ' + MONEY +
     ' totalPriceSet ' + MONEY + ' currentTotalPriceSet ' + MONEY + ' totalRefundedSet ' + MONEY + ' totalReceivedSet ' + MONEY +
     ' shippingAddress { province provinceCode city zip } customer { id }' +
-    ' customerJourneySummary { daysToConversion firstVisit ' + VISIT + ' lastVisit ' + VISIT + ' }' +
+    ' customerJourneySummary { daysToConversion momentsCount { count } firstVisit ' + VISIT + ' lastVisit ' + VISIT + ' }' +
     ' fulfillments(first: 5) { status displayStatus createdAt inTransitAt deliveredAt }' +
     ' lineItems(first: 20) { nodes { quantity currentQuantity sku title variantTitle product { id title productType } variant { id inventoryItem { unitCost { amount } } }' +
     ' originalTotalSet ' + MONEY + ' discountedTotalSet ' + MONEY + ' taxLines { priceSet ' + MONEY + ' } } } } } }';
@@ -68,7 +68,11 @@
     targetMer: 3,
     targetCac: 400,
     platforms: ['Meta', 'Google'],
-    codPattern: 'cash on delivery|\\bcod\\b|gokwik cod|cash_on_delivery'
+    codPattern: 'cash on delivery|\\bcod\\b|gokwik cod|cash_on_delivery',
+    codShareEstimate: 0.4,
+    repeatReachCost: 15,
+    gstRate: 0.18,
+    divergenceAlarm: 0.15
   };
   MD.settings = JSON.parse(JSON.stringify(MD.DEFAULT_SETTINGS));
 

@@ -139,6 +139,10 @@
     ['codRtoRate', 'Expected COD RTO rate', 'Used for orders not yet delivered.', 'pct'],
     ['prepaidRtoRate', 'Expected prepaid RTO rate', 'Used for orders not yet delivered.', 'pct'],
     ['returnRate', 'Expected return rate after delivery', 'Half the item value is counted as lost.', 'pct'],
+    ['codShareEstimate', 'COD share of orders (for monthly report)', 'Monthly figures come from Shopify Analytics, which does not split COD.', 'pct'],
+    ['repeatReachCost', 'Cost to win a repeat order', 'WhatsApp or email cost per repeat purchase.', 'money'],
+    ['gstRate', 'GST rate on shipping', 'Used to take GST out of shipping charged.', 'pct'],
+    ['divergenceAlarm', 'Tracking alarm threshold', 'Flag days when platform purchases differ from Shopify orders by more than this.', 'pct'],
     ['targetMer', 'Target MER', 'Revenue ex GST ÷ ad spend.', 'x'],
     ['targetCac', 'Target new-customer CAC', 'Acquisition spend ÷ new customers.', 'money']
   ];

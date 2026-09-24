@@ -19,8 +19,11 @@
     if (!MD.views[view]) view = 'founder';
     state.view = view;
     Array.prototype.forEach.call(document.querySelectorAll('#tabs [data-view]'), function (b) {
-      b.setAttribute('aria-selected', b.getAttribute('data-view') === view ? 'true' : 'false');
+      var on = b.getAttribute('data-view') === view;
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) $('view-title').textContent = b.textContent;
     });
+    $('tabs').classList.remove('open');
     writeHash();
     render();
   }
@@ -75,6 +78,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('#tabs [data-view]'), function (b) {
       b.addEventListener('click', function () { select(b.getAttribute('data-view')); });
     });
+    $('nav-toggle').addEventListener('click', function () { var o = $('tabs').classList.toggle('open'); this.setAttribute('aria-expanded', o ? 'true' : 'false'); });
     $('period').addEventListener('change', function () { state.period = MD.period($('period').value); writeHash(); render(); });
     $('refresh').addEventListener('click', function () { MD.clearCache(); MD.clearOrderCache(); render(); });
     select(h.v || 'founder');

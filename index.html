@@ -9,37 +9,63 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <h1>Monday Dashboard <small id="shopname"></small></h1>
-    <div class="controls">
-      <select id="period" aria-label="Period">
-        <option value="today">Today</option>
-        <option value="yesterday">Yesterday</option>
-        <option value="7d">Last 7 days</option>
-        <option value="30d" selected>Last 30 days</option>
-        <option value="mtd">Month to date</option>
-        <option value="90d">Last 90 days</option>
-      </select>
-      <button class="btn" id="refresh" type="button">Refresh</button>
+<div class="shell">
+  <nav class="side" id="tabs" aria-label="Reports">
+    <div class="brand"><b>Monday</b> Dashboard<small id="shopname"></small></div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false">Menu</button>
+    <div class="nav-groups" id="nav-groups">
+      <div class="ng"><div class="ngh">Home</div>
+        <button data-view="founder">Founder view</button>
+        <button data-view="today">Today</button>
+        <button data-view="report">Performance report</button>
+      </div>
+      <div class="ng"><div class="ngh">Acquisition</div>
+        <button data-view="acquisition">Traffic</button>
+        <button data-view="attribution">Attribution</button>
+      </div>
+      <div class="ng"><div class="ngh">Engagement</div>
+        <button data-view="journeys">Journeys &amp; landing pages</button>
+        <button data-view="funnel">Conversion funnel</button>
+        <button data-view="carts">Carts &amp; checkouts</button>
+      </div>
+      <div class="ng"><div class="ngh">Monetization</div>
+        <button data-view="revenue">Revenue &amp; orders</button>
+        <button data-view="products">Products</button>
+      </div>
+      <div class="ng"><div class="ngh">Retention</div>
+        <button data-view="retention">Cohorts &amp; repeat</button>
+      </div>
+      <div class="ng"><div class="ngh">Business</div>
+        <button data-view="ops">Finance &amp; ops</button>
+      </div>
+      <div class="ng"><div class="ngh">Explore</div>
+        <button data-view="explore">Build a view</button>
+      </div>
+      <div class="ng"><div class="ngh">Configure</div>
+        <button data-view="spend">Ad spend</button>
+        <button data-view="settings">Settings</button>
+      </div>
     </div>
-  </div>
-
-  <nav class="tabs" role="tablist" id="tabs">
-    <button role="tab" data-view="founder">Founder</button>
-    <button role="tab" data-view="revenue">Revenue &amp; orders</button>
-    <button role="tab" data-view="acquisition">Acquisition</button>
-    <button role="tab" data-view="attribution">Attribution</button>
-    <button role="tab" data-view="funnel">Conversion</button>
-    <button role="tab" data-view="products">Products</button>
-    <button role="tab" data-view="retention">Retention</button>
-    <button role="tab" data-view="ops">Finance &amp; ops</button>
-    <button role="tab" data-view="spend">Ad spend</button>
-    <button role="tab" data-view="settings">Settings</button>
   </nav>
 
-  <main id="view"><div class="loading">Loading…</div></main>
-  <p class="muted" id="foot" style="text-align:center;font-size:12px"></p>
+  <div class="main">
+    <div class="top">
+      <h1 id="view-title">Monday Dashboard</h1>
+      <div class="controls">
+        <select id="period" aria-label="Period">
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d" selected>Last 30 days</option>
+          <option value="mtd">Month to date</option>
+          <option value="90d">Last 90 days</option>
+        </select>
+        <button class="btn" id="refresh" type="button">Refresh</button>
+      </div>
+    </div>
+    <main id="view"><div class="loading">Loading…</div></main>
+    <p class="muted" id="foot" style="text-align:center;font-size:12px"></p>
+  </div>
 </div>
 
 <script src="js/core.js"></script>
@@ -48,6 +74,10 @@
 <script src="js/views-business.js"></script>
 <script src="js/views-growth.js"></script>
 <script src="js/views-admin.js"></script>
+<script src="js/views-report.js"></script>
+<script src="js/views-journeys.js"></script>
+<script src="js/views-products-extra.js"></script>
+<script src="js/views-explore.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
